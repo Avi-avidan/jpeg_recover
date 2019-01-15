@@ -27,9 +27,7 @@ def download(dataset_name):
 
 
 class DLoader(object):
-    def __init__(self, config, resize=False, augment=False, resample=False, phmin=False,
-                 catin=False, cat_outchannels=False, apply_mask=False, debug=False):
-        self.resample = resample
+    def __init__(self, config, resize=False, augment=False, debug=False):
         self.resize = resize
         self.augment = augment
         self.debug = debug
@@ -52,7 +50,7 @@ class DLoader(object):
         self.img_shape = config['img_inp_shape']
         self.out_shape = config['out_shape']
         self.out_channels = self.out_shape[-1]
-        self.resize_res = 512
+        self.resize_res = config['resize_res']
 
         self.img_data = tf.placeholder(tf.float32, shape=[None] + self.img_shape)
         self.label_data = tf.placeholder(tf.float32, shape=[None] + self.out_shape)
@@ -60,7 +58,8 @@ class DLoader(object):
         queue_types = [tf.float32, tf.float32]
         queue_objects = [self.label_data, self.img_data]
         
-        self.queue = tf.FIFOQueue(shapes=None, #shapes=[self.out_shape, self.img_shape],
+        self.queue = tf.FIFOQueue(#shapes=None,
+                                  shapes=[self.out_shape, self.img_shape],
                                   dtypes=queue_types,
                                   capacity=10)
         self.enqueue_ops = self.queue.enqueue_many(queue_objects)
