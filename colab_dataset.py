@@ -14,14 +14,28 @@ from imgaug import augmenters as iaa
 import imageio
 
 
+def download(dataset_name):
+    datasets_dir = './datasets/'
+    mkdir(datasets_dir)
+    URL='https://people.eecs.berkeley.edu/~tinghuiz/projects/pix2pix/datasets/%s.tar.gz' % (dataset_name)
+    TAR_FILE='./datasets/%s.tar.gz' % (dataset_name)
+    TARGET_DIR='./datasets/%s/' % (dataset_name)
+    os.system('wget -N %s -O %s' % (URL, TAR_FILE))
+    os.mkdir(TARGET_DIR)
+    os.system('tar -zxf %s -C ./datasets/' % (TAR_FILE))
+    os.remove(TAR_FILE)
+
+
 class DLoader(object):
-    def __init__(self, config, resize=False, augment=False, debug=False):
+    def __init__(self, config, resize=False, augment=False, resample=False, phmin=False,
+                 catin=False, cat_outchannels=False, apply_mask=False, debug=False):
+        self.resample = resample
         self.resize = resize
         self.augment = augment
         self.debug = debug
         self.color_augment_precent = 0.0
         self.img_lab_aug_precent = 0.5
-        self.rotate_precent = 0.5
+        self.rotate_precent = 0.3
         self.batch_size = config['batch_size']
         self.thread_num = config['thread_num']
         self.pad_divisable = config['pad_divisable']
@@ -38,19 +52,18 @@ class DLoader(object):
         self.img_shape = config['img_inp_shape']
         self.out_shape = config['out_shape']
         self.out_channels = self.out_shape[-1]
-        self.resize_res = config['resize_res']
+        self.resize_res = 512
+        with tf.device('/gpu:0'):
+            self.img_data = tf.placeholder(tf.float32, shape=[None] + self.img_shape)
+            self.label_data = tf.placeholder(tf.float32, shape=[None] + self.out_shape)
 
-        self.img_data = tf.placeholder(tf.float32, shape=[None] + self.img_shape)
-        self.label_data = tf.placeholder(tf.float32, shape=[None] + self.out_shape)
+            queue_types = [tf.float32, tf.float32]
+            queue_objects = [self.label_data, self.img_data]
 
-        queue_types = [tf.float32, tf.float32]
-        queue_objects = [self.label_data, self.img_data]
-        
-        self.queue = tf.FIFOQueue(#shapes=None,
-                                  shapes=[self.out_shape, self.img_shape],
-                                  dtypes=queue_types,
-                                  capacity=100)
-        self.enqueue_ops = self.queue.enqueue_many(queue_objects)
+            self.queue = tf.FIFOQueue(shapes=None, #shapes=[self.out_shape, self.img_shape],
+                                      dtypes=queue_types,
+                                      capacity=10)
+            self.enqueue_ops = self.queue.enqueue_many(queue_objects)
         self.print_load_done()
         
     def print_load_done(self):
@@ -179,17 +192,12 @@ class DLoader(object):
     
     def get_augmenters_img_mask(self):
         aug_list = []
+        if random.uniform(0,1) < self.rotate_precent:
+            aug_list.append(iaa.Affine(rotate=(-10,10)))
         if random.uniform(0,1) > 0.4:
             aug_list.append(iaa.Affine(scale=(0.7, 1.0)))
         if random.uniform(0,1) > 0.4:
             aug_list.append(iaa.Affine(translate_px={"x": (-20, 20), "y": (-20, 20)}))
-        if random.uniform(0,1) < self.rotate_precent:
-            aug_list.append(iaa.Affine(rotate=(-180,180)))
-        else:
-            if random.uniform(0,1) < 0.5:
-                aug_list.append(iaa.Fliplr(1.0))
-            if random.uniform(0,1) < 0.5:
-                aug_list.append(iaa.Flipud(1.0))
         return sklearn.utils.shuffle(aug_list)
     
     
@@ -237,13 +245,14 @@ class DLoader(object):
 
                
     def get_inputs(self):
-        if self.batch_size > 1:
-            labels, imgs = self.queue.dequeue_many(self.batch_size)
-        else:
-            labels, imgs = self.queue.dequeue()
-            labels = tf.expand_dims(labels, 0)
-            imgs = tf.expand_dims(imgs, 0)
-        return imgs, labels
+        with tf.device('/gpu:0'):
+            if self.batch_size > 1:
+                labels, imgs = self.queue.dequeue_many(self.batch_size)
+            else:
+                labels, imgs = self.queue.dequeue()
+                labels = tf.expand_dims(labels, 0)
+                imgs = tf.expand_dims(imgs, 0)
+            return imgs, labels
     
     def thread_main(self, sess):
         for imgs, labels in self.batch_iterator():

@@ -2,20 +2,18 @@ import tensorflow as tf
 from base_network import ResNet_Model
 
 class DfnNet:
-    def __init__(self, train_y, train_x, bn_moment=0.99):
+    def __init__(self, sess, train_y, train_x, bn_moment=0.99):
         self.bn_moment = bn_moment
         self.score = None                   # nn output, before argmax
-        self.input_shape = [None,None,3]
-        self.output_shape = [None,None,2]
-        self.out_filters = self.output_shape[-1]
-        
+         
         self.tf_global_step = None
         self.tf_learning_rate = None
         with tf.name_scope("model_input"):
             self.x = train_x
         with tf.name_scope("model_output"):
             self.label = train_y
-        
+
+        self.out_filters = sess.run(tf.shape(train_y))[-1]
         self.train_step = None              # operation to run graph optimization
         self.loss = None                    # training loss - a scalar
 
@@ -94,9 +92,9 @@ class DfnNet:
         
         with tf.name_scope('nn_loss'):
 
-            self.loss_1 = tf.reduce_mean(tf.math.squared_difference(self.bmp_m2,self.label), name='rmse_loss_2')
-            self.loss_2 = tf.reduce_mean(tf.math.squared_difference(self.bmp_m1,self.label), name='rmse_loss_1')
-            self.loss_3 = tf.reduce_mean(tf.math.squared_difference(self.bmp_predict,self.label), name='rmse_loss_0')
+            self.loss_1 = tf.reduce_mean(tf.math.squared_difference(self.bmp_m2, self.label), name='rmse_loss_2')
+            self.loss_2 = tf.reduce_mean(tf.math.squared_difference(self.bmp_m1, self.label), name='rmse_loss_1')
+            self.loss_3 = tf.reduce_mean(tf.math.squared_difference(self.bmp_predict, self.label), name='rmse_loss_0')
 
             self.loss = 1*self.loss_1 + 1*self.loss_2 + 5*self.loss_3
 

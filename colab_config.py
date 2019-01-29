@@ -15,7 +15,7 @@ config['debug'] = False
 
 config['data_root'] = '/content/gdrive/My Drive/viz/takehome'
 config['log_root'] = '/content/gdrive/My Drive/viz/logs'
-config['samples_root'] = config['data_root'] + '/jpg'
-config['labels_root'] = config['data_root'] + '/bmp'
+# config['samples_root'] = config['data_root'] + '/jpg'
+# config['labels_root'] = config['data_root'] + '/bmp'
 
 config['train_val_lists'] = config['data_root'] + '/train_val_lists.pickle'
